@@ -8,6 +8,10 @@ from xbee import ZigBee
 logger = logging.getLogger(__name__)
 
 
+class ProtocolError(Exception):
+    pass
+
+
 class Node:
     """Xbee Zigbee node"""
 
@@ -64,6 +68,9 @@ class SensorNetwork:
             elif data['rf_data'][0] == self.INFO_RESPONSE:
                 self._message_queue.append(data)
                 logger.debug('Received INFO_RESPONSE, added to queue.')
+            elif data['rf_data'][0] == self.CTRL_NACK:
+                self._message_queue.append(data)
+                logger.debug('Received NACK, added to queue.')
             else:
                 print('Unknown data: {}'.format(data['rf_data']))
         elif 'id' in data.keys() and data['id'] == 'tx_status':
@@ -87,13 +94,22 @@ class SensorNetwork:
         self._xbee.halt()
         self._ser.close()
 
-    def _wait_for_response(self, node, type_):
+    def _wait_for_response(self, node, type_, fail_type, following=None):
         while True:
             for msg in self._message_queue:
                 if 'source_addr_long' in msg.keys() and msg['source_addr_long'] == node.long_addr:
                     # Message is from target node
                     if len(msg['rf_data']) > 0 and msg['rf_data'][0] == type_:
-                        return msg['rf_data'][1:]
+                        if following is None:
+                            self._message_queue.remove(msg)
+                            return msg['rf_data'][1:]
+                        elif len(msg) > 1 + len(following) and msg['rf_data'][1:len(following) + 1] == following:
+                            self._message_queue.remove(msg)
+                            return msg['rf_data'][1:]
+                    # Check for NACK of same type
+                    if len(msg['rf_data']) == 2 and msg['rf_data'][0] == self.CTRL_NACK and msg['rf_data'][1] == fail_type:
+                        self._message_queue.remove(msg)
+                        raise ProtocolError("Node returned NACK, did you ask for something which doesn't exist?")
 
     def get_node_io(self, node):
         if type(node) != Node:  # Check node is a Node
@@ -101,7 +117,7 @@ class SensorNetwork:
         self._xbee.tx(dest_addr_long=node.long_addr, data=bytes([self.IO_REQUEST]))
         logger.info('Waiting for IO_RESPONSE')
         out = {}
-        for b in self._wait_for_response(node, self.IO_RESPONSE):  # Loop over each byte as each respresents a device type
+        for b in self._wait_for_response(node, self.IO_RESPONSE, self.IO_REQUEST):  # Loop over each byte as each respresents a device type
             out[Node.Type(b >> 4).name] = (b & 15) + 1  # +1 to 1-index number of devices
         return out
 
@@ -115,5 +131,6 @@ class SensorNetwork:
         if index < 0 or index > 15:
             raise ValueError('Index out of bounds (0-15).')
         self._xbee.tx(dest_addr_long=node.long_addr, data=bytes([self.INFO_REQUEST, (type_.value << 4) + index]))
-        print('Waiting for INFO_RESPONSE')
-        return self._wait_for_response(node, self.INFO_RESPONSE)
+        logger.info('Waiting for INFO_RESPONSE')
+        data = self._wait_for_response(node, self.INFO_RESPONSE, self.INFO_REQUEST, following=bytes([(type_.value << 4) + index]))
+        return data[1:]
