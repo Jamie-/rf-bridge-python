@@ -15,7 +15,7 @@ class ProtocolError(Exception):
 class Node:
     """Xbee Zigbee node"""
 
-    class Type(enum.Enum):
+    class Device(enum.Enum):
         ANALOGUE_1BYTE = 0
         ANALOGUE_2BYTE = 1
         DIGITAL_INPUT = 2
@@ -117,20 +117,20 @@ class SensorNetwork:
         self._xbee.tx(dest_addr_long=node.long_addr, data=bytes([self.IO_REQUEST]))
         logger.info('Waiting for IO_RESPONSE')
         out = {}
-        for b in self._wait_for_response(node, self.IO_RESPONSE, self.IO_REQUEST):  # Loop over each byte as each respresents a device type
-            out[Node.Type(b >> 4).name] = (b & 15) + 1  # +1 to 1-index number of devices
+        for b in self._wait_for_response(node, self.IO_RESPONSE, self.IO_REQUEST):  # Loop over each byte as each represents a device
+            out[Node.Device(b >> 4).name] = (b & 15) + 1  # +1 to 1-index number of devices
         return out
 
-    def get_device_info(self, node, type_, index=0):
+    def get_device_info(self, node, device, index=0):
         if type(node) != Node:  # Check node is a valid Node
             raise TypeError('Invalid node.')
-        if type(type_) != Node.Type:  # Check type_ is a valid Node.Type
-            raise TypeError('Invalid IO type.')
+        if type(device) != Node.Device:  # Check device is a valid Node.Device
+            raise TypeError('Invalid IO device.')
         if type(index) != int:
             raise TypeError('Invalid index.')
         if index < 0 or index > 15:
             raise ValueError('Index out of bounds (0-15).')
-        self._xbee.tx(dest_addr_long=node.long_addr, data=bytes([self.INFO_REQUEST, (type_.value << 4) + index]))
+        self._xbee.tx(dest_addr_long=node.long_addr, data=bytes([self.INFO_REQUEST, (device.value << 4) + index]))
         logger.info('Waiting for INFO_RESPONSE')
-        data = self._wait_for_response(node, self.INFO_RESPONSE, self.INFO_REQUEST, following=bytes([(type_.value << 4) + index]))
+        data = self._wait_for_response(node, self.INFO_RESPONSE, self.INFO_REQUEST, following=bytes([(device.value << 4) + index]))
         return data[1:]
