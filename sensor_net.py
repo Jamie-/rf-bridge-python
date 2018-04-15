@@ -51,6 +51,7 @@ class SensorNetwork:
         Args:
             timeout (int): Seconds before function returns.
         """
+        logger.debug('Starting node discovery...')
         self._xbee.at(command='ND')
         if timeout > 0:
             time.sleep(timeout)
@@ -65,6 +66,10 @@ class SensorNetwork:
                 logger.debug('Received INFO_RESPONSE, added to queue.')
             else:
                 print('Unknown data: {}'.format(data['rf_data']))
+        elif 'id' in data.keys() and data['id'] == 'tx_status':
+            if data['deliver_status'] != b'\x00':
+                logger.error('Transmission was not delivered!')
+                logger.error(data)
         elif 'command' in data.keys():
             command = data['command'].decode('utf-8')
             if command == 'ND':
@@ -94,7 +99,7 @@ class SensorNetwork:
         if type(node) != Node:  # Check node is a Node
             raise TypeError('Invalid node.')
         self._xbee.tx(dest_addr_long=node.long_addr, data=bytes([self.IO_REQUEST]))
-        print('Waiting for IO_RESPONSE')
+        logger.info('Waiting for IO_RESPONSE')
         out = {}
         for b in self._wait_for_response(node, self.IO_RESPONSE):  # Loop over each byte as each respresents a device type
             out[Node.Type(b >> 4).name] = (b & 15) + 1  # +1 to 1-index number of devices
