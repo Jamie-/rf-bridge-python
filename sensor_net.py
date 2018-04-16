@@ -158,9 +158,9 @@ class SensorNetwork:
             raise ValueError('Index out of bounds (0-15).')
         self._xbee.tx(dest_addr_long=node.long_addr, data=bytes([self.DATA_REQUEST, (device.value << 4) + index]))
         logger.info('Waiting for DATA_RESPONSE')
-        if device == Node.Device.ANALOGUE_1BYTE or device == Node.Device.DIGITAL_INPUT:
+        if device == Node.Device.ANALOGUE_1BYTE or device == Node.Device.DIGITAL_OUTPUT:
             return self._wait_for_response(node, self.DATA_RESPONSE, self.DATA_REQUEST, following=bytes([(device.value << 4) + index]), count=3)[1:]
         elif device == Node.Device.ANALOGUE_2BYTE:
             return self._wait_for_response(node, self.DATA_RESPONSE, self.DATA_REQUEST, following=bytes([(device.value << 4) + index]), count=4)[1:]
-        elif device == Node.Device.STRING_INPUT:
+        elif device == Node.Device.BYTE_OUTPUT:
             return self._wait_for_response(node, self.DATA_RESPONSE, self.DATA_REQUEST, following=bytes([(device.value << 4) + index]))[1:]
