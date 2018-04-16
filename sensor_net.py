@@ -189,6 +189,19 @@ class SensorNetwork:
         return data[1:]
 
     def get_data(self, node, payload, index=0):
+        """Get data from node supporting data sourcing.
+
+        Args:
+            node (Node): Node to retrieve data from.
+            payload (Node.Payload): Payload type to retrieve data for.
+            index (int): Address of payload if node presents multiple.
+
+        Returns:
+            bytes or int or list of bool:
+                If requesting an analog value, returns int of value.
+                If requesting a digital output, returns list of bool containing 8 values.
+                Otherwise, bytes of raw data.
+        """
         if type(node) != Node:  # Check node is a valid Node
             raise TypeError('Invalid node.')
         if type(payload) != Node.Payload:  # Check payload is a valid Node.Payload
