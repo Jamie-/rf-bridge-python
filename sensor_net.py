@@ -78,6 +78,9 @@ class SensorNetwork:
             elif data['rf_data'][0] == Packet.DATA_RESPONSE.value:
                 self._message_queue.append(data)
                 logger.debug('Received DATA_RESPONSE, added to queue.')
+            elif data['rf_data'][0] == Packet.CTRL_ACK.value:
+                self._message_queue.append(data)
+                logger.debug('Received ACK, added to queue.')
             elif data['rf_data'][0] == Packet.CTRL_NACK.value:
                 self._message_queue.append(data)
                 logger.debug('Received NACK, added to queue.')
@@ -126,7 +129,7 @@ class SensorNetwork:
                             self._message_queue.remove(msg)
                             return msg['rf_data'][1:]
                         # Just following
-                        elif count is None and len(msg['rf_data']) > 1 + len(following) and msg['rf_data'][1:len(following) + 1] == following:
+                        elif count is None and len(msg['rf_data']) > len(following) and msg['rf_data'][1:len(following) + 1] == following:
                             self._message_queue.remove(msg)
                             return msg['rf_data'][1:]
                         # Just count
