@@ -68,6 +68,9 @@ class SensorNetwork:
             elif data['rf_data'][0] == self.INFO_RESPONSE:
                 self._message_queue.append(data)
                 logger.debug('Received INFO_RESPONSE, added to queue.')
+            elif data['rf_data'][0] == self.DATA_RESPONSE:
+                self._message_queue.append(data)
+                logger.debug('Received DATA_RESPONSE, added to queue.')
             elif data['rf_data'][0] == self.CTRL_NACK:
                 self._message_queue.append(data)
                 logger.debug('Received NACK, added to queue.')
@@ -94,16 +97,25 @@ class SensorNetwork:
         self._xbee.halt()
         self._ser.close()
 
-    def _wait_for_response(self, node, type_, fail_type, following=None):
+    def _wait_for_response(self, node, type_, fail_type, following=None, count=None):
         while True:
             for msg in self._message_queue:
                 if 'source_addr_long' in msg.keys() and msg['source_addr_long'] == node.long_addr:
                     # Message is from target node
                     if len(msg['rf_data']) > 0 and msg['rf_data'][0] == type_:
-                        if following is None:
+                        if following is None and count is None:
                             self._message_queue.remove(msg)
                             return msg['rf_data'][1:]
-                        elif len(msg) > 1 + len(following) and msg['rf_data'][1:len(following) + 1] == following:
+                        # Just following
+                        elif count is None and len(msg['rf_data']) > 1 + len(following) and msg['rf_data'][1:len(following) + 1] == following:
+                            self._message_queue.remove(msg)
+                            return msg['rf_data'][1:]
+                        # Just count
+                        elif following is None and len(msg['rf_data']) == count:
+                            self._message_queue.remove(msg)
+                            return msg['rf_data'][1:]
+                        # Following AND count
+                        elif len(msg['rf_data']) == count and len(msg['rf_data']) > 1 + len(following) and msg['rf_data'][1:len(following) + 1] == following:
                             self._message_queue.remove(msg)
                             return msg['rf_data'][1:]
                     # Check for NACK of same type
@@ -118,7 +130,7 @@ class SensorNetwork:
         logger.info('Waiting for IO_RESPONSE')
         out = {}
         for b in self._wait_for_response(node, self.IO_RESPONSE, self.IO_REQUEST):  # Loop over each byte as each represents a device
-            out[Node.Device(b >> 4).name] = (b & 15) + 1  # +1 to 1-index number of devices
+            out[Node.Device(b >> 4)] = (b & 15) + 1  # +1 to 1-index number of devices
         return out
 
     def get_device_info(self, node, device, index=0):
@@ -134,3 +146,21 @@ class SensorNetwork:
         logger.info('Waiting for INFO_RESPONSE')
         data = self._wait_for_response(node, self.INFO_RESPONSE, self.INFO_REQUEST, following=bytes([(device.value << 4) + index]))
         return data[1:]
+
+    def get_data(self, node, device, index=0):
+        if type(node) != Node:  # Check device is a valid Node
+            raise TypeError('Invalid node.')
+        if type(device) != Node.Device:  # Check device is a valid Node.Device
+            raise TypeError('Invalid IO device.')
+        if type(index) != int:
+            raise TypeError('Invalid index.')
+        if index < 0 or index > 15:
+            raise ValueError('Index out of bounds (0-15).')
+        self._xbee.tx(dest_addr_long=node.long_addr, data=bytes([self.DATA_REQUEST, (device.value << 4) + index]))
+        logger.info('Waiting for DATA_RESPONSE')
+        if device == Node.Device.ANALOGUE_1BYTE or device == Node.Device.DIGITAL_INPUT:
+            return self._wait_for_response(node, self.DATA_RESPONSE, self.DATA_REQUEST, following=bytes([(device.value << 4) + index]), count=3)[1:]
+        elif device == Node.Device.ANALOGUE_2BYTE:
+            return self._wait_for_response(node, self.DATA_RESPONSE, self.DATA_REQUEST, following=bytes([(device.value << 4) + index]), count=4)[1:]
+        elif device == Node.Device.STRING_INPUT:
+            return self._wait_for_response(node, self.DATA_RESPONSE, self.DATA_REQUEST, following=bytes([(device.value << 4) + index]))[1:]
