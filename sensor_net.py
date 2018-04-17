@@ -3,6 +3,7 @@ import enum
 import serial
 import logging
 import binascii
+import struct
 from xbee import ZigBee
 
 logger = logging.getLogger(__name__)
@@ -40,11 +41,20 @@ class Node:
         BYTE_OUTPUT = 5
 
     def __init__(self, long_addr, identifier):
+        self.addr = struct.unpack("L", long_addr)[0]
         self.long_addr = long_addr
-        self.identifier = identifier
+        self.identifier = identifier.decode()
 
     def __repr__(self):
         return 'Node({}:{})'.format(binascii.hexlify(self.long_addr).decode('utf-8'), self.identifier.decode('utf-8'))
+
+    def __eq__(self, other):
+        if not isinstance(other, Node):
+            return False
+        return self.long_addr == other.long_addr and self.identifier == other.identifier
+
+    def __hash__(self):
+        return self.addr
 
 
 class SensorNetwork:
