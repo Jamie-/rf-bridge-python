@@ -62,7 +62,7 @@ class SensorNetwork:
     def __init__(self, serial_device, baud=9600, escaped=True):  # Use escaped for XBees in API mode 2
         self._ser = serial.Serial(serial_device, baud)
         self._xbee = ZigBee(self._ser, callback=self._handle_data, escaped=escaped)
-        self._slave_nodes = []  # Slave nodes found using self.discover()
+        self._slave_nodes = {}  # Slave nodes found using self.discover()
         self._message_queue = []  # Queued data messages incoming
 
     def discover(self, timeout=0):
@@ -104,7 +104,9 @@ class SensorNetwork:
             command = data['command'].decode('utf-8')
             if command == 'ND':  # XBee node discovery AT command
                 params = data['parameter']
-                self._slave_nodes.append(Node(params['source_addr_long'], params['node_identifier']))
+                node = Node(params['source_addr_long'], params['node_identifier'])
+                logging.debug("Found node at {}".format(node.addr))
+                self._slave_nodes[node.addr] = node
             else:
                 logger.error('Unsupported command: {}'.format(command))
         else:
