@@ -14,9 +14,12 @@ for node in sn._slave_nodes:
     payloads = sn.get_node_io(node)
     for payload in payloads.keys():
         print('Node {} has - {}: {}'.format(idx, payload.name, str(payloads[payload])))
-        payload_info = sn.get_payload_info(node, payload)
-        print("Payload reports it is: {}".format(payload_info.decode('utf-8')))
-        payload_data = sn.get_data(node, payload)
-        print('Data: {} ({})'.format(str(payload_data), type(payload_data).__name__))
+        for i in range(0, payloads[payload]):
+            payload_info = sn.get_payload_info(node, payload, index=i)
+            print("Payload {} reports it is: {}".format(i, payload_info.decode('utf-8')))
+            # If payload represents a data source, pull data
+            if payload not in (Node.Payload.DIGITAL_INPUT, Node.Payload.BYTE_INPUT):
+                payload_data = sn.get_data(node, payload)
+                print('Data: {} ({})'.format(str(payload_data), type(payload_data).__name__))
     idx += 1
 sn.stop()
