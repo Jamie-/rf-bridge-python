@@ -258,6 +258,7 @@ class SensorNetwork:
         if index < 0 or index > 15:
             raise ValueError('Index out of bounds (0-15).')
         if payload == Node.Payload.BYTE_INPUT:
+            data = SensorNetwork.convert_payload(payload, data)
             self._xbee.tx(dest_addr_long=node.long_addr, data=bytes([Packet.SET_REQUEST.value, (payload.value << 4) + index]) + data)
         elif payload == Node.Payload.DIGITAL_INPUT:
             if type(data) not in (list, tuple) or len(data) != 8:
@@ -272,3 +273,8 @@ class SensorNetwork:
             self._xbee.tx(dest_addr_long=node.long_addr, data=bytes([Packet.SET_REQUEST.value, (payload.value << 4) + index, out]))
         logger.info('Waiting for ACK after having sent data')
         self._wait_for_response(node, Packet.CTRL_ACK, Packet.SET_REQUEST, following=bytes([Packet.SET_REQUEST.value]))
+
+    @staticmethod
+    def convert_payload(payload, data):
+        if payload == Node.Payload.BYTE_INPUT:
+            return bytes([data])
