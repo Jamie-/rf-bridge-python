@@ -225,3 +225,38 @@ class SensorNetwork:
             return int((data[0] << 8) + data[1])
         elif payload == Node.Payload.BYTE_OUTPUT:  # Return raw bytes
             return self._wait_for_response(node, Packet.DATA_RESPONSE, Packet.DATA_REQUEST, following=bytes([(payload.value << 4) + index]))[1:]
+
+    def send_data(self, node, payload, data, index=0):
+        """Send data to a node supporting data sinking.
+
+        Args:
+            node (Node): Node to send data to.
+            payload (Node.Payload): Payload type of data to send.
+            data: Data to be sent to device, type dependant on payload.
+            index (int): Address of payload on node if multiple available.
+        """
+        if type(node) != Node:  # Check node is a valid Node
+            raise TypeError('Invalid node.')
+        if type(payload) != Node.Payload:  # Check payload is a valid Node.Payload
+            raise TypeError('Invalid IO payload.')
+        if type(index) != int:
+            raise TypeError('Invalid index.')
+        if payload not in (Node.Payload.DIGITAL_INPUT, Node.Payload.BYTE_INPUT):
+            raise ValueError('Cannot send data to a source node.')
+        if index < 0 or index > 15:
+            raise ValueError('Index out of bounds (0-15).')
+        if payload == Node.Payload.BYTE_INPUT:
+            self._xbee.tx(dest_addr_long=node.long_addr, data=bytes([Packet.SET_REQUEST.value, (payload.value << 4) + index]) + data)
+        elif payload == Node.Payload.DIGITAL_INPUT:
+            if type(data) not in (list, tuple) or len(data) != 8:
+                raise ValueError("Data is not in correct format for specified payload type.")
+            out = 0
+            for i in reversed(range(0, 8)):
+                if type(data[i]) != bool:
+                    raise ValueError("Data is not in correct format for specified payload type.")
+                if data[i] == True:
+                    out += 1 << i
+            print(out)
+            self._xbee.tx(dest_addr_long=node.long_addr, data=bytes([Packet.SET_REQUEST.value, (payload.value << 4) + index, out]))
+        logger.info('Waiting for ACK after having sent data')
+        self._wait_for_response(node, Packet.CTRL_ACK, Packet.SET_REQUEST, following=bytes([Packet.SET_REQUEST.value]))
