@@ -41,7 +41,8 @@ class Node:
         BYTE_OUTPUT = 5
 
     def __init__(self, long_addr, identifier):
-        self.addr = struct.unpack("L", long_addr)[0]
+        addr = struct.unpack("II", long_addr)
+        self.addr = hash(addr[0] ^ addr[1])
         self.long_addr = long_addr
         self.identifier = identifier.decode()
 
