@@ -10,7 +10,7 @@ sn = SensorNetwork('/dev/ttyUSB0')
 sn.discover(5)
 print("Nodes connected: " + str(sn._slave_nodes))
 idx = 0
-for node in sn._slave_nodes:
+for node_id, node in sn._slave_nodes.items():
     payloads = sn.get_node_io(node)
     for payload in payloads.keys():
         print('Node {} has - {}: {}'.format(idx, payload.name, str(payloads[payload])))

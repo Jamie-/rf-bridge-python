@@ -49,7 +49,7 @@ class Node:
         self.identifier = identifier.decode()
 
     def __repr__(self):
-        return 'Node({}:{})'.format(binascii.hexlify(self.long_addr).decode('utf-8'), self.identifier.decode('utf-8'))
+        return 'Node({}:{})'.format(binascii.hexlify(self.long_addr).decode('utf-8'), self.identifier)
 
     def __eq__(self, other):
         if not isinstance(other, Node):
