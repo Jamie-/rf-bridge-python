@@ -3,6 +3,7 @@ import enum
 import serial
 import logging
 import binascii
+import struct
 from xbee import ZigBee
 
 logger = logging.getLogger(__name__)
@@ -42,11 +43,21 @@ class Node:
         BYTE_OUTPUT = 7
 
     def __init__(self, long_addr, identifier):
+        addr = struct.unpack("II", long_addr)
+        self.addr = hash(addr[0] ^ addr[1])
         self.long_addr = long_addr
-        self.identifier = identifier
+        self.identifier = identifier.decode()
 
     def __repr__(self):
         return 'Node({}:{})'.format(binascii.hexlify(self.long_addr).decode('utf-8'), self.identifier.decode('utf-8'))
+
+    def __eq__(self, other):
+        if not isinstance(other, Node):
+            return False
+        return self.long_addr == other.long_addr and self.identifier == other.identifier
+
+    def __hash__(self):
+        return self.addr
 
 
 class SensorNetwork:
@@ -54,7 +65,7 @@ class SensorNetwork:
     def __init__(self, serial_device, baud=9600, escaped=True):  # Use escaped for XBees in API mode 2
         self._ser = serial.Serial(serial_device, baud)
         self._xbee = ZigBee(self._ser, callback=self._handle_data, escaped=escaped)
-        self._slave_nodes = []  # Slave nodes found using self.discover()
+        self._slave_nodes = {}  # Slave nodes found using self.discover()
         self._message_queue = []  # Queued data messages incoming
 
     def discover(self, timeout=0):
@@ -96,7 +107,9 @@ class SensorNetwork:
             command = data['command'].decode('utf-8')
             if command == 'ND':  # XBee node discovery AT command
                 params = data['parameter']
-                self._slave_nodes.append(Node(params['source_addr_long'], params['node_identifier']))
+                node = Node(params['source_addr_long'], params['node_identifier'])
+                logging.debug("Found node at {}".format(node.addr))
+                self._slave_nodes[node.addr] = node
             else:
                 logger.error('Unsupported command: {}'.format(command))
         else:
@@ -248,6 +261,7 @@ class SensorNetwork:
         if index < 0 or index > 15:
             raise ValueError('Index out of bounds (0-15).')
         if payload == Node.Payload.BYTE_INPUT:
+            data = SensorNetwork.convert_payload(payload, data)
             self._xbee.tx(dest_addr_long=node.long_addr, data=bytes([Packet.SET_REQUEST.value, (payload.value << 4) + index]) + data)
         elif payload == Node.Payload.INT_1B_INPUT:
             if type(data) != int:
@@ -274,3 +288,8 @@ class SensorNetwork:
             self._xbee.tx(dest_addr_long=node.long_addr, data=bytes([Packet.SET_REQUEST.value, (payload.value << 4) + index, out]))
         logger.info('Waiting for ACK after having sent data')
         self._wait_for_response(node, Packet.CTRL_ACK, Packet.SET_REQUEST, following=bytes([Packet.SET_REQUEST.value]))
+
+    @staticmethod
+    def convert_payload(payload, data):
+        if payload == Node.Payload.BYTE_INPUT:
+            return bytes([data])
