@@ -79,6 +79,44 @@ class SensorNetwork:
         if timeout > 0:
             time.sleep(timeout)
 
+    def get_node_ids(self):
+        """Get IDs of all slave nodes.
+
+        Returns:
+            list of addr: List of slave node IDs.
+        """
+        return self._slave_nodes.keys()
+
+    def get_nodes(self):
+        """Get all slave nodes.
+
+        Returns:
+            list of Node: List of slave nodes.
+        """
+        return self._slave_nodes.values()
+
+    def get_node_by_id(self, id):
+        """Get a node by it's ID.
+
+        Args:
+            id: Node ID.
+
+        Returns:
+            Node: Node represented by ID.
+        """
+        return self._slave_nodes.get(id)
+
+    def node_exists(self, id):
+        """Test if a node exists in the slave nodes.
+
+        Args:
+            id: Node ID.
+
+        Returns:
+            bool: True if node ID exists in slave nodes, else False.
+        """
+        return id in self._slave_nodes
+
     def _handle_data(self, data):
         """Internal function to handle data responses from XBee API."""
         if 'rf_data' in data.keys():
