@@ -18,7 +18,7 @@ for node in sn._slave_nodes:
             payload_info = sn.get_payload_info(node, payload, index=i)
             print("Payload {} reports it is: {}".format(i, payload_info.decode('utf-8')))
             # If payload represents a data source, pull data
-            if payload not in (Node.Payload.DIGITAL_INPUT, Node.Payload.BYTE_INPUT):
+            if payload not in (Node.Payload.DIGITAL_INPUT, Node.Payload.BYTE_INPUT, Node.Payload.INT_1B_INPUT, Node.Payload.INT_2B_INPUT):
                 payload_data = sn.get_data(node, payload)
                 print('Data: {} ({})'.format(str(payload_data), type(payload_data).__name__))
     idx += 1

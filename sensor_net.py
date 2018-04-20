@@ -32,12 +32,14 @@ class Node:
 
     class Payload(enum.Enum):
         """Payload data type."""
-        ANALOGUE_1BYTE = 0
-        ANALOGUE_2BYTE = 1
-        DIGITAL_INPUT = 2
-        DIGITAL_OUTPUT = 3
-        BYTE_INPUT = 4
-        BYTE_OUTPUT = 5
+        INT_1B_OUTPUT = 0
+        INT_2B_OUTPUT = 1
+        INT_1B_INPUT = 2
+        INT_2B_INPUT = 3
+        DIGITAL_INPUT = 4
+        DIGITAL_OUTPUT = 5
+        BYTE_INPUT = 6
+        BYTE_OUTPUT = 7
 
     def __init__(self, long_addr, identifier):
         self.long_addr = long_addr
@@ -217,10 +219,10 @@ class SensorNetwork:
         if payload == Node.Payload.DIGITAL_OUTPUT:  # Return tuple of True/False values representing data
             data = self._wait_for_response(node, Packet.DATA_RESPONSE, Packet.DATA_REQUEST, following=bytes([(payload.value << 4) + index]), count=3)[1:]
             return [(int(data[0]) & 1 << i) >> i == 1 for i in reversed(range(0, 8))]
-        elif payload == Node.Payload.ANALOGUE_1BYTE:
+        elif payload == Node.Payload.INT_1B_OUTPUT:  # Return number represented by byte data
             data = self._wait_for_response(node, Packet.DATA_RESPONSE, Packet.DATA_REQUEST, following=bytes([(payload.value << 4) + index]), count=3)[1:]
             return int(data)
-        elif payload == Node.Payload.ANALOGUE_2BYTE:  # Return number represented by byte data
+        elif payload == Node.Payload.INT_2B_OUTPUT:  # Return number represented by byte data
             data = self._wait_for_response(node, Packet.DATA_RESPONSE, Packet.DATA_REQUEST, following=bytes([(payload.value << 4) + index]), count=4)[1:]
             return int((data[0] << 8) + data[1])
         elif payload == Node.Payload.BYTE_OUTPUT:  # Return raw bytes
@@ -241,12 +243,24 @@ class SensorNetwork:
             raise TypeError('Invalid IO payload.')
         if type(index) != int:
             raise TypeError('Invalid index.')
-        if payload not in (Node.Payload.DIGITAL_INPUT, Node.Payload.BYTE_INPUT):
+        if payload not in (Node.Payload.DIGITAL_INPUT, Node.Payload.BYTE_INPUT, Node.Payload.INT_1B_INPUT, Node.Payload.INT_2B_INPUT):
             raise ValueError('Cannot send data to a source node.')
         if index < 0 or index > 15:
             raise ValueError('Index out of bounds (0-15).')
         if payload == Node.Payload.BYTE_INPUT:
             self._xbee.tx(dest_addr_long=node.long_addr, data=bytes([Packet.SET_REQUEST.value, (payload.value << 4) + index]) + data)
+        elif payload == Node.Payload.INT_1B_INPUT:
+            if type(data) != int:
+                raise TypeError('Invalid data type for INT_1B_Input.')
+            if data < 0 or data > 255:
+                raise ValueError('Data out of bounds (0-255).')
+            self._xbee.tx(dest_addr_long=node.long_addr, data=bytes([Packet.SET_REQUEST.value, (payload.value << 4) + index, data]))
+        elif payload == Node.Payload.INT_2B_INPUT:
+            if type(data) != int:
+                raise TypeError('Invalid data type for INT_2B_Input.')
+            if data < 0 or data > 65535:
+                raise ValueError('Data out of bounds (0-65535).')
+            self._xbee.tx(dest_addr_long=node.long_addr, data=bytes([Packet.SET_REQUEST.value, (payload.value << 4) + index, data >> 8, data & 255]))
         elif payload == Node.Payload.DIGITAL_INPUT:
             if type(data) not in (list, tuple) or len(data) != 8:
                 raise ValueError("Data is not in correct format for specified payload type.")
