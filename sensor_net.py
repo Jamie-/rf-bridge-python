@@ -272,7 +272,7 @@ class SensorNetwork:
             return [(int(data[0]) & 1 << i) >> i == 1 for i in reversed(range(0, 8))]
         elif payload == Node.Payload.INT_1B_OUTPUT:  # Return number represented by byte data
             data = self._wait_for_response(node, Packet.DATA_RESPONSE, Packet.DATA_REQUEST, following=bytes([(payload.value << 4) + index]), count=3)[1:]
-            return int(data)
+            return int(data[0])
         elif payload == Node.Payload.INT_2B_OUTPUT:  # Return number represented by byte data
             data = self._wait_for_response(node, Packet.DATA_RESPONSE, Packet.DATA_REQUEST, following=bytes([(payload.value << 4) + index]), count=4)[1:]
             return int((data[0] << 8) + data[1])
