@@ -299,7 +299,6 @@ class SensorNetwork:
         if index < 0 or index > 15:
             raise ValueError('Index out of bounds (0-15).')
         if payload == Node.Payload.BYTE_INPUT:
-            data = SensorNetwork.convert_payload(payload, data)
             self._xbee.tx(dest_addr_long=node.long_addr, data=bytes([Packet.SET_REQUEST.value, (payload.value << 4) + index]) + data)
         elif payload == Node.Payload.INT_1B_INPUT:
             if type(data) != int:
