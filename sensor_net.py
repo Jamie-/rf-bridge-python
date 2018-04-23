@@ -160,7 +160,7 @@ class SensorNetwork:
         self._xbee.halt()
         self._ser.close()
 
-    def _wait_for_response(self, node, type_, fail_type, following=None, count=None):
+    def _wait_for_response(self, node, type_, fail_type, following=None, count=None, timeout=None):
         """Internal function to wait until data arrives meeting specific constraints.
 
         Args:
@@ -173,6 +173,9 @@ class SensorNetwork:
         Returns:
             bytes: Data bytes after type byte.
         """
+        if timeout is None:
+            timeout = 0
+        timer = time.time() + timeout
         while True:
             for msg in self._message_queue:
                 if 'source_addr_long' in msg.keys() and msg['source_addr_long'] == node.long_addr:
@@ -197,8 +200,10 @@ class SensorNetwork:
                     if len(msg['rf_data']) == 2 and msg['rf_data'][0] == Packet.CTRL_NACK.value and msg['rf_data'][1] == fail_type.value:
                         self._message_queue.remove(msg)
                         raise ProtocolError("Node returned NACK, did you ask for something which doesn't exist?")
+            if timeout > 0 and time.time() > timer:
+                raise ProtocolError('Did not recieve any data from node.')
 
-    def get_node_io(self, node):
+    def get_node_io(self, node, timeout=None):
         """Get IO presented by node.
 
         Args:
@@ -213,11 +218,11 @@ class SensorNetwork:
         logger.info('Waiting for IO_RESPONSE')
         out = {}
         # Loop over each byte as each represents a device
-        for b in self._wait_for_response(node, Packet.IO_RESPONSE, Packet.IO_REQUEST):
+        for b in self._wait_for_response(node, Packet.IO_RESPONSE, Packet.IO_REQUEST, timeout=timeout):
             out[Node.Payload(b >> 4)] = (b & 15) + 1  # +1 to 1-index number of devices
         return out
 
-    def get_payload_info(self, node, payload, index=0):
+    def get_payload_info(self, node, payload, index=0, timeout=None):
         """Get information about payload presented by node.
 
         Args:
@@ -238,10 +243,10 @@ class SensorNetwork:
             raise ValueError('Index out of bounds (0-15).')
         self._xbee.tx(dest_addr_long=node.long_addr, data=bytes([Packet.INFO_REQUEST.value, (payload.value << 4) + index]))
         logger.info('Waiting for INFO_RESPONSE')
-        data = self._wait_for_response(node, Packet.INFO_RESPONSE, Packet.INFO_REQUEST, following=bytes([(payload.value << 4) + index]))
+        data = self._wait_for_response(node, Packet.INFO_RESPONSE, Packet.INFO_REQUEST, following=bytes([(payload.value << 4) + index]), timeout=timeout)
         return data[1:]
 
-    def get_data(self, node, payload, index=0):
+    def get_data(self, node, payload, index=0, timeout=None):
         """Get data from node supporting data sourcing.
 
         Args:
@@ -268,18 +273,18 @@ class SensorNetwork:
         self._xbee.tx(dest_addr_long=node.long_addr, data=bytes([Packet.DATA_REQUEST.value, (payload.value << 4) + index]))
         logger.info('Waiting for DATA_RESPONSE')
         if payload == Node.Payload.DIGITAL_OUTPUT:  # Return tuple of True/False values representing data
-            data = self._wait_for_response(node, Packet.DATA_RESPONSE, Packet.DATA_REQUEST, following=bytes([(payload.value << 4) + index]), count=3)[1:]
+            data = self._wait_for_response(node, Packet.DATA_RESPONSE, Packet.DATA_REQUEST, following=bytes([(payload.value << 4) + index]), count=3, timeout=timeout)[1:]
             return [(int(data[0]) & 1 << i) >> i == 1 for i in reversed(range(0, 8))]
         elif payload == Node.Payload.INT_1B_OUTPUT:  # Return number represented by byte data
-            data = self._wait_for_response(node, Packet.DATA_RESPONSE, Packet.DATA_REQUEST, following=bytes([(payload.value << 4) + index]), count=3)[1:]
+            data = self._wait_for_response(node, Packet.DATA_RESPONSE, Packet.DATA_REQUEST, following=bytes([(payload.value << 4) + index]), count=3, timeout=timeout)[1:]
             return int(data[0])
         elif payload == Node.Payload.INT_2B_OUTPUT:  # Return number represented by byte data
-            data = self._wait_for_response(node, Packet.DATA_RESPONSE, Packet.DATA_REQUEST, following=bytes([(payload.value << 4) + index]), count=4)[1:]
+            data = self._wait_for_response(node, Packet.DATA_RESPONSE, Packet.DATA_REQUEST, following=bytes([(payload.value << 4) + index]), count=4, timeout=timeout)[1:]
             return int((data[0] << 8) + data[1])
         elif payload == Node.Payload.BYTE_OUTPUT:  # Return raw bytes
-            return self._wait_for_response(node, Packet.DATA_RESPONSE, Packet.DATA_REQUEST, following=bytes([(payload.value << 4) + index]))[1:]
+            return self._wait_for_response(node, Packet.DATA_RESPONSE, Packet.DATA_REQUEST, following=bytes([(payload.value << 4) + index]), timeout=timeout)[1:]
 
-    def send_data(self, node, payload, data, index=0):
+    def send_data(self, node, payload, data, index=0, timeout=None):
         """Send data to a node supporting data sinking.
 
         Args:
@@ -324,7 +329,7 @@ class SensorNetwork:
             print(out)
             self._xbee.tx(dest_addr_long=node.long_addr, data=bytes([Packet.SET_REQUEST.value, (payload.value << 4) + index, out]))
         logger.info('Waiting for ACK after having sent data')
-        self._wait_for_response(node, Packet.CTRL_ACK, Packet.SET_REQUEST, following=bytes([Packet.SET_REQUEST.value]))
+        self._wait_for_response(node, Packet.CTRL_ACK, Packet.SET_REQUEST, following=bytes([Packet.SET_REQUEST.value]), timeout=timeout)
 
     @staticmethod
     def convert_payload(payload, data):
